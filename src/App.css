@@ -1,0 +1,204 @@
+* {
+  box-sizing: border-box;
+  padding: 0px;
+  margin: 0px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.font {
+  font-family: "Oswald", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+}
+.initIcon {
+  height: 70px;
+  width: 70px;
+}
+.initIcon img {
+  height: 100%;
+  width: 100%;
+}
+.initIcon video {
+  height: 100%;
+  width: 100%;
+  object-fit: contain;
+}
+.Container {
+  position: relative;
+  width: max-content;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 5px;
+  color: rgb(0, 0, 0);
+}
+
+@keyframes open {
+  from {
+    height: 50px;
+    opacity: 0;
+    scale: 0;
+    width: 50px;
+  }
+
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+.background img {
+  background-color: rgb(11, 59, 59);
+  object-fit: contain;
+  height: 100%;
+  width: 100%;
+}
+.reposition {
+  height: 20px;
+  width: 200px;
+
+  -webkit-app-region: drag;
+}
+
+.dragable {
+  top: 0px;
+  left: 0px;
+  position: absolute;
+  height: 20px;
+  width: 20px;
+
+  z-index: 3;
+  -webkit-app-region: drag;
+}
+
+.contextMenu {
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 8px 0;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+}
+
+.contextMenu button {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  color: white;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.contextMenu button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.contextMenu button:first-child {
+  border-radius: 8px 8px 0 0;
+}
+
+.contextMenu button:last-child {
+  border-radius: 0 0 8px 8px;
+}
+
+.customSizeContainer {
+  width: 200px;
+  height: 200px;
+  background-color: aqua;
+  z-index: 99999999999999;
+  overflow: scroll;
+  scrollbar-width: 1px;
+}
+
+.customSizeDialog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+
+.customSizeContainer {
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  min-width: 300px;
+  backdrop-filter: blur(10px);
+}
+
+.customSizeContainer h3 {
+  margin: 0 0 16px 0;
+  color: white;
+  font-size: 16px;
+}
+
+.sizeInput {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sizeInput label {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sizeInput input {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: white;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.sizeInput input:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.actions button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.actions button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.actions button:active {
+  transform: scale(0.98);
+}
