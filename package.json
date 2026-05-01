@@ -40,6 +40,9 @@
   "build": {
     "appId": "com.prajwol.quicklunch",
     "productName": "QuickLunch",
+    "win": {
+    "icon": "assets/AppIcon.ico"
+  },
     "directories": {
       "output": "release"
     },

@@ -112,6 +112,7 @@ function createWindow() {
       sandbox: false,
     },
   });
+  win.setIcon(path.join(__dirname, "assets/AppIcon.ico"));
 
   console.log("Window created");
 
