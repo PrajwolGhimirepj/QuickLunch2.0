@@ -99,28 +99,26 @@ const SitesGrid = ({ close }) => {
   };
 
   // Open or focus site
-  const handleOpenSite = (site) => {
-    const existingTab = tabs.find(
-      (tab) => normalizeUrl(tab.url) === normalizeUrl(site.url),
-    );
+ const handleOpenSite = (site) => {
+  const existingTab = tabs.find(
+    (tab) => normalizeUrl(tab.url) === normalizeUrl(site.url),
+  );
 
-    // Step 1: bring Chrome to front
+  if (existingTab) {
+    //  Focus Chrome first (ffi-napi is ~5ms, no delay needed)
     window.electronAPI?.focusChrome();
 
-    if (existingTab) {
-      // Step 2: delay before switching tab
-      setTimeout(() => {
-        wsRef.current?.send(
-          JSON.stringify({
-            action: "focus-tab",
-            tabId: existingTab.id,
-          }),
-        );
-      }, 200);
-    } else {
-      window.open(site.url, "_blank");
-    }
-  };
+    // Send tab switch immediately after
+    wsRef.current?.send(
+      JSON.stringify({
+        action: "focus-tab",
+        tabId: existingTab.id,
+      })
+    );
+  } else {
+    window.open(site.url, "_blank");
+  }
+};
 
   // Add manual site
   const addSite = () => {

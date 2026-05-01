@@ -9,25 +9,33 @@ function connectWS() {
   };
 
   socket.onclose = () => {
-    console.log(" Disconnected, retrying...");
+    console.log("Disconnected, retrying...");
     setTimeout(connectWS, 2000);
   };
 
-  // Handle incoming messages from the client
   socket.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
-
       console.log("Received from client:", data);
 
-      //  HANDLE FOCUS TAB
+      // HANDLE FOCUS TAB
       if (data.action === "focus-tab" && data.tabId) {
         chrome.tabs.update(data.tabId, { active: true }, (tab) => {
           if (chrome.runtime.lastError) {
             console.error("Error focusing tab:", chrome.runtime.lastError);
-          } else {
-            console.log("Tab focused:", tab.id);
+            return;
           }
+
+          console.log("Tab focused:", tab.id);
+
+          // ✅ Bring Chrome window to foreground
+          chrome.windows.update(tab.windowId, { focused: true }, () => {
+            if (chrome.runtime.lastError) {
+              console.error("Error focusing window:", chrome.runtime.lastError);
+            } else {
+              console.log("Window brought to front:", tab.windowId);
+            }
+          });
         });
       }
     } catch (err) {
@@ -35,7 +43,8 @@ function connectWS() {
     }
   };
 }
-//Send all tabs and active tab info to the React client
+
+// Send all tabs and active tab info to the React client
 function sendAllTabsWithActive() {
   chrome.tabs.query({}, (tabs) => {
     chrome.tabs.query({ active: true, currentWindow: true }, (activeTabArr) => {
@@ -43,6 +52,7 @@ function sendAllTabsWithActive() {
         title: tab.title,
         url: tab.url,
         id: tab.id,
+        windowId: tab.windowId, // ✅ include windowId for future use
       }));
 
       const activeTab = activeTabArr[0]
@@ -50,6 +60,7 @@ function sendAllTabsWithActive() {
             title: activeTabArr[0].title,
             url: activeTabArr[0].url,
             id: activeTabArr[0].id,
+            windowId: activeTabArr[0].windowId, // ✅ include windowId
           }
         : null;
 

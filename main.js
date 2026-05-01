@@ -1,8 +1,8 @@
 import { app, BrowserWindow, shell, ipcMain, screen } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
-import { spawn } from "child_process";
-import { exec } from "child_process";
+import { spawn, exec } from "child_process";
+import { Script } from "vm";
 
 // Fix __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -22,7 +22,6 @@ if (!gotTheLock) {
   app.quit();
 } else {
   app.on("second-instance", () => {
-    // If someone tries to open a second instance, focus the existing window
     if (win) {
       if (win.isMinimized()) win.restore();
       win.focus();
@@ -30,11 +29,31 @@ if (!gotTheLock) {
   });
 }
 
-// 🔥 Start your Node server with proper error handling
+function focusChromeWindow() {
+  if (win) win.setAlwaysOnTop(false);
+
+  const scriptPath = path.join(__dirname, "Script/Focus.py");
+
+  const pythonProcess = spawn("python", [scriptPath], {
+    stdio: "inherit",
+  });
+
+  pythonProcess.on("error", (err) => {
+    console.error("Failed to run Python script:", err);
+    // Restore always on top even if script failed
+    if (win) win.setAlwaysOnTop(true);
+  });
+
+  pythonProcess.on("exit", (code) => {
+    console.log(`Python script exited with code ${code}`);
+    // Restore always on top after Chrome has been focused
+    if (win) win.setAlwaysOnTop(true);
+  });
+}
+// Start Node server
 function startServer() {
   return new Promise((resolve, reject) => {
     const serverPath = path.join(__dirname, "Server.js");
-
     console.log(`Starting server from: ${serverPath}`);
 
     serverProcess = spawn(process.execPath, [serverPath], {
@@ -51,19 +70,16 @@ function startServer() {
       reject(err);
     });
 
-    serverProcess.on("exit", (code, signal) => {
+    serverProcess.on("exit", (code) => {
       if (code !== 0 && code !== null) {
         console.error(`Server process exited with code ${code}`);
       }
     });
 
-    // Listen for 'ready' message from Server.js
     if (serverProcess.stdout) {
       serverProcess.stdout.on("data", (data) => {
         const output = data.toString();
         console.log(`[Server] ${output}`);
-
-        // Check if server is ready (customize based on your Server.js output)
         if (
           output.includes("listening") ||
           output.includes("started") ||
@@ -80,13 +96,11 @@ function startServer() {
       });
     }
 
-    // Fallback timeout - resolve after 5 seconds anyway
     const timeout = setTimeout(() => {
       console.log("Server startup timeout - proceeding anyway");
       resolve();
     }, 5000);
 
-    // Clear timeout if server sends ready message
     serverProcess.on("message", (msg) => {
       if (msg === "ready") {
         clearTimeout(timeout);
@@ -112,23 +126,17 @@ function createWindow() {
       sandbox: false,
     },
   });
-  win.setIcon(path.join(__dirname, "assets/AppIcon.ico"));
 
+  win.setIcon(path.join(__dirname, "assets/AppIcon.ico"));
   console.log("Window created");
 
-  // Load URL based on environment
-  let url;
-  if (isDev) {
-    url = "http://localhost:5173"; // Vite dev server
-  } else {
-    url = "https://quicklubch.netlify.app/"; // Production Netlify
-  }
-
+  const url = isDev
+    ? "http://localhost:5173"
+    : "https://quicklubch.netlify.app/";
   console.log(`Loading URL: ${url}`);
 
   win.loadURL(url).catch((err) => {
     console.error("Failed to load URL:", err);
-    // Retry loading after a delay
     setTimeout(() => {
       win.loadURL(url).catch((retryErr) => {
         console.error("Failed to load URL on retry:", retryErr);
@@ -136,21 +144,14 @@ function createWindow() {
     }, 2000);
   });
 
-  // Open external links in default browser
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
   });
 
-  // Handle window closed
   win.on("closed", () => {
     win = null;
   });
-
-  // Open DevTools in development
-  // if (isDev) {
-  //   win.webContents.openDevTools();
-  // }
 }
 
 app.whenReady().then(async () => {
@@ -158,12 +159,9 @@ app.whenReady().then(async () => {
   console.log(`Environment: ${isDev ? "development" : "production"}`);
 
   try {
-    // Start server and wait for it to be ready
     console.log("Starting server...");
     await startServer();
     console.log("Server started successfully");
-
-    // Create window after server is ready
     createWindow();
   } catch (err) {
     console.error("Failed to start application:", err);
@@ -171,48 +169,23 @@ app.whenReady().then(async () => {
   }
 });
 
-// 🔥 Kill server on exit
 app.on("will-quit", () => {
   console.log("App is quitting, cleaning up...");
-
   if (serverProcess) {
-    console.log("Killing server process...");
     serverProcess.kill();
     console.log("Server stopped");
   }
 });
 
+
+
 // ================= IPC HANDLERS =================
 
-// Focus Chrome
 ipcMain.on("focus-chrome", () => {
-  console.log("Attempting to focus Chrome...");
-
-  const psCommand = `powershell -Command "
-    $proc = Get-Process chrome -ErrorAction SilentlyContinue;
-    if ($proc -and $proc.MainWindowHandle) {
-      Add-Type @'
-        using System;
-        using System.Runtime.InteropServices;
-        public class WinAPI {
-          [DllImport("user32.dll")]
-          public static extern bool SetForegroundWindow(IntPtr hWnd);
-        }
-'@;
-      [WinAPI]::SetForegroundWindow($proc.MainWindowHandle);
-    }
-  "`;
-
-  exec(psCommand, (err) => {
-    if (err) {
-      console.log("Failed to focus Chrome:", err);
-    } else {
-      console.log("Chrome focused successfully");
-    }
-  });
+  console.log("focus-chrome IPC received");
+  focusChromeWindow();
 });
 
-// Resize window
 ipcMain.on("resize-window", (event, payload) => {
   if (!win || !payload?.width || !payload?.height) {
     console.warn("Invalid resize window payload:", payload);
@@ -226,7 +199,6 @@ ipcMain.on("resize-window", (event, payload) => {
   const { width: screenW, height: screenH } = display.workAreaSize;
 
   const margin = 10;
-
   const x = screenW - w - margin;
   const y = screenH - h - margin;
 
@@ -234,37 +206,24 @@ ipcMain.on("resize-window", (event, payload) => {
   win.setBounds({ width: w, height: h, x, y });
 });
 
-// Get server URL (useful for renderer process)
-ipcMain.handle("get-server-url", () => {
-  return SERVER_URL;
-});
+ipcMain.handle("get-server-url", () => SERVER_URL);
 
-// Get environment info
-ipcMain.handle("get-env-info", () => {
-  return {
-    isDev,
-    serverPort: SERVER_PORT,
-    serverUrl: SERVER_URL,
-    platform: process.platform,
-    arch: process.arch,
-  };
-});
+ipcMain.handle("get-env-info", () => ({
+  isDev,
+  serverPort: SERVER_PORT,
+  serverUrl: SERVER_URL,
+  platform: process.platform,
+  arch: process.arch,
+}));
 
-// macOS behavior
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+  if (process.platform !== "darwin") app.quit();
 });
 
-// Handle app activation (macOS)
 app.on("activate", () => {
-  if (win === null) {
-    createWindow();
-  }
+  if (win === null) createWindow();
 });
 
-// Handle any uncaught exceptions
 process.on("uncaughtException", (err) => {
   console.error("Uncaught exception:", err);
 });

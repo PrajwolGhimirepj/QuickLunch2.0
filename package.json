@@ -15,6 +15,7 @@
   "dependencies": {
     "@reduxjs/toolkit": "^2.11.2",
     "firebase": "^12.11.0",
+    "koffi": "^2.16.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-redux": "^9.2.0",
@@ -29,6 +30,7 @@
     "concurrently": "^9.2.1",
     "electron": "^41.0.3",
     "electron-builder": "^26.8.1",
+    "electron-rebuild": "^3.2.9",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
@@ -41,8 +43,8 @@
     "appId": "com.prajwol.quicklunch",
     "productName": "QuickLunch",
     "win": {
-    "icon": "assets/AppIcon.ico"
-  },
+      "target": "nsis"
+    },
     "directories": {
       "output": "release"
     },
@@ -52,9 +54,6 @@
       "preload.js",
       "Server.js",
       "package.json"
-    ],
-    "win": {
-      "target": "nsis"
-    }
+    ]
   }
 }

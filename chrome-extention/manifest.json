@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Tab Sync WS",
   "version": "1.0",
-  "permissions": ["tabs"],
+  "permissions": ["tabs","webSockets"],
   "background": {
     "service_worker": "background.js"
   }
