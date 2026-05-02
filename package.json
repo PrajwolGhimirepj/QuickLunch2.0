@@ -4,14 +4,18 @@
   "version": "1.0.0",
   "type": "module",
   "main": "main.js",
+
   "scripts": {
     "dev": "vite",
     "electron": "electron .",
-    "start": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\"",
+    "server": "node Server.js",
+    "start": "concurrently \"npm run server\" \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\"",
     "build": "vite build",
     "dist": "npm run build && electron-builder",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "electron-builder install-app-deps"
   },
+
   "dependencies": {
     "@reduxjs/toolkit": "^2.11.2",
     "firebase": "^12.11.0",
@@ -22,6 +26,7 @@
     "redux": "^5.0.1",
     "ws": "^8.20.0"
   },
+
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@types/react": "^19.2.14",
@@ -39,21 +44,31 @@
     "vite": "^8.0.1",
     "wait-on": "^9.0.4"
   },
+
   "build": {
     "appId": "com.prajwol.quicklunch",
     "productName": "QuickLunch",
-    "win": {
-      "target": "nsis"
-    },
+
+    "asar": false,
+
     "directories": {
       "output": "release"
     },
+
     "files": [
-      "dist/**/*",
-      "main.js",
-      "preload.js",
-      "Server.js",
-      "package.json"
-    ]
+      "**/*"
+    ],
+
+    "extraResources": [
+      {
+        "from": "./scripts",
+        "to": "scripts"
+      }
+    ],
+
+    "win": {
+      "target": "nsis",
+      "artifactName": "${productName}-Setup.${ext}"
+    }
   }
 }

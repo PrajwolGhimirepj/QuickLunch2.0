@@ -5,7 +5,7 @@
   overflow: hidden;
   animation: open 0.3s;
   animation-timing-function: cubic-bezier(0.82, -0.7, 0, 0.97);
-  background-color: rgb(66, 57, 64);
+
 }
 
 @keyframes open {
@@ -21,6 +21,7 @@
 }
 
 .grid {
+  height: 200px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
 }

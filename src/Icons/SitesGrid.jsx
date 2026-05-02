@@ -9,7 +9,7 @@ const SitesGrid = ({ close }) => {
 
   const [initHeight, setInitHeight] = useState(0);
 
-  const [showPopup, setShowPopup] = useState(false);
+
   const [loaded, setLoaded] = useState(false);
 
   const [name, setName] = useState("");
@@ -18,13 +18,17 @@ const SitesGrid = ({ close }) => {
   const [draggedIndex, setDraggedIndex] = useState(null);
 
   const wsRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
 
   // WebSocket connection
   useEffect(() => {
     const connect = () => {
+      console.log("Attempting to connect to WebSocket...");
       wsRef.current = new WebSocket("ws://localhost:3002");
 
-      wsRef.current.onopen = () => console.log("WS connected");
+      wsRef.current.onopen = () => {
+        console.log("WS connected");
+      };
 
       wsRef.current.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -38,15 +42,24 @@ const SitesGrid = ({ close }) => {
         }
       };
 
+      wsRef.current.onerror = (error) => {
+        console.error("WS error:", error);
+      };
+
       wsRef.current.onclose = () => {
-        console.log("WS disconnected, retrying...");
-        setTimeout(connect, 2000);
+        console.log("WS disconnected, retrying in 2 seconds...");
+        reconnectTimeoutRef.current = setTimeout(connect, 2000);
       };
     };
 
-    connect();
+    // Wait 1 second before initial connection to ensure server is ready
+    const initialDelay = setTimeout(connect, 1000);
 
-    return () => wsRef.current?.close();
+    return () => {
+      clearTimeout(initialDelay);
+      clearTimeout(reconnectTimeoutRef.current);
+      wsRef.current?.close();
+    };
   }, []);
 
   // Load from localStorage
@@ -63,13 +76,6 @@ const SitesGrid = ({ close }) => {
     }
   }, [sites, loaded]);
 
-  // Show popup if empty
-  useEffect(() => {
-    if (loaded && sites.length === 0) {
-      setShowPopup(true);
-      setInitHeight(200);
-    }
-  }, [sites, loaded]);
 
   // Normalize URL
   const normalizeUrl = (input) => {
@@ -251,28 +257,7 @@ const SitesGrid = ({ close }) => {
         </div>
       </div>
 
-      {showPopup && (
-        <div className="popup">
-          <h3>Add Site</h3>
-
-          <input
-            placeholder="Site Name (optional)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-
-          <input
-            placeholder="example.com"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-
-          <div className="popup-actions">
-            <button onClick={addSite}>Add</button>
-            <button onClick={() => setShowPopup(false)}>Cancel</button>
-          </div>
-        </div>
-      )}
+ 
     </div>
   );
 };

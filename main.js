@@ -1,19 +1,23 @@
 import { app, BrowserWindow, shell, ipcMain, screen } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
-import { spawn, exec } from "child_process";
-import { Script } from "vm";
+import { spawn } from "child_process";
+import net from "net";
+import { WebSocketServer } from "ws";
 
 // Fix __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let win;
-let serverProcess;
+let wss;
 
 const isDev = !app.isPackaged;
 const SERVER_PORT = process.env.SERVER_PORT || 3000;
 const SERVER_URL = `http://localhost:${SERVER_PORT}`;
+const WS_PORT = Number(process.env.WS_PORT || 3002);
+const WS_HOST = "127.0.0.1";
+const WS_URL = `ws://localhost:${WS_PORT}`;
 
 // 🔥 SINGLE INSTANCE LOCK
 const gotTheLock = app.requestSingleInstanceLock();
@@ -33,8 +37,10 @@ function focusChromeWindow() {
   if (win) win.setAlwaysOnTop(false);
 
   const scriptPath = path.join(__dirname, "Script/Focus.py");
+  const pythonCommand = process.platform === "win32" ? "python" : "python3";
 
-  const pythonProcess = spawn("python", [scriptPath], {
+  console.log(`Launching Python script with: ${pythonCommand} ${scriptPath}`);
+  const pythonProcess = spawn(pythonCommand, [scriptPath], {
     stdio: "inherit",
   });
 
@@ -51,62 +57,80 @@ function focusChromeWindow() {
   });
 }
 // Start Node server
+function isPortInUse(port, host = WS_HOST) {
+  return new Promise((resolve) => {
+    const socket = net.connect(port, host);
+    socket.on("connect", () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.on("error", () => {
+      resolve(false);
+    });
+  });
+}
+
 function startServer() {
-  return new Promise((resolve, reject) => {
-    const serverPath = path.join(__dirname, "Server.js");
-    console.log(`Starting server from: ${serverPath}`);
+  return new Promise(async (resolve, reject) => {
+    console.log(`Checking WebSocket port ${WS_PORT}...`);
+    const alreadyRunning = await isPortInUse(WS_PORT);
+    if (alreadyRunning) {
+      console.log(`Detected an existing WebSocket server on port ${WS_PORT}, reusing it.`);
+      resolve();
+      return;
+    }
 
-    serverProcess = spawn(process.execPath, [serverPath], {
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        NODE_ENV: isDev ? "development" : "production",
-        SERVER_PORT: SERVER_PORT,
-      },
+    console.log(`Starting a new WebSocket server at ${WS_URL}`);
+
+    const clients = new Set();
+    let lastMessage = null;
+
+    wss = new WebSocketServer({ port: WS_PORT });
+
+    wss.on("listening", () => {
+      console.log(`WS Server running on ws://localhost:${WS_PORT}`);
+      resolve();
     });
 
-    serverProcess.on("error", (err) => {
-      console.error("Failed to start server process:", err);
-      reject(err);
-    });
-
-    serverProcess.on("exit", (code) => {
-      if (code !== 0 && code !== null) {
-        console.error(`Server process exited with code ${code}`);
+    wss.on("error", (error) => {
+      if (error.code === "EADDRINUSE") {
+        console.error(
+          `WebSocket port ${WS_PORT} is already in use. Stop the other process or set WS_PORT to a different port.`,
+        );
+      } else {
+        console.error("WebSocket server error:", error);
       }
+      reject(error);
     });
 
-    if (serverProcess.stdout) {
-      serverProcess.stdout.on("data", (data) => {
-        const output = data.toString();
-        console.log(`[Server] ${output}`);
-        if (
-          output.includes("listening") ||
-          output.includes("started") ||
-          output.includes("Server running")
-        ) {
-          resolve();
+    wss.on("connection", (ws) => {
+      clients.add(ws);
+      console.log("Client connected");
+
+      if (lastMessage) {
+        ws.send(JSON.stringify(lastMessage));
+      }
+
+      ws.on("message", (message) => {
+        try {
+          const data = JSON.parse(message.toString());
+          console.log("Tabs received:", data);
+          lastMessage = data;
+
+          clients.forEach((client) => {
+            if (client.readyState === client.OPEN) {
+              client.send(JSON.stringify(data));
+            }
+          });
+        } catch (err) {
+          console.error("Invalid WS message:", err);
         }
       });
-    }
 
-    if (serverProcess.stderr) {
-      serverProcess.stderr.on("data", (data) => {
-        console.error(`[Server Error] ${data.toString()}`);
+      ws.on("close", () => {
+        clients.delete(ws);
+        console.log("Client disconnected");
       });
-    }
-
-    const timeout = setTimeout(() => {
-      console.log("Server startup timeout - proceeding anyway");
-      resolve();
-    }, 5000);
-
-    serverProcess.on("message", (msg) => {
-      if (msg === "ready") {
-        clearTimeout(timeout);
-        console.log("Server signaled ready");
-        resolve();
-      }
     });
   });
 }
@@ -171,9 +195,10 @@ app.whenReady().then(async () => {
 
 app.on("will-quit", () => {
   console.log("App is quitting, cleaning up...");
-  if (serverProcess) {
-    serverProcess.kill();
-    console.log("Server stopped");
+  if (wss) {
+    wss.close(() => {
+      console.log("WebSocket server stopped");
+    });
   }
 });
 
