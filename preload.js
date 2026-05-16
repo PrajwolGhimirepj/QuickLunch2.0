@@ -11,6 +11,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   getCurrentTab: () => ipcRenderer.invoke("get-current-tab"),
 
+  // 🔥 Server and environment diagnostics
+  getServerStatus: () => ipcRenderer.invoke("get-server-status"),
+  getEnvInfo: () => ipcRenderer.invoke("get-env-info"),
+
   // 🔥 NEW: receive live tab data from extension
   onTabsData: (callback) => {
     ipcRenderer.on("tabs-data", (_, data) => callback(data));

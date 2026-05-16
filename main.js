@@ -3,7 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import net from "net";
-import { WebSocketServer } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 
 // Fix __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -11,6 +11,15 @@ const __dirname = path.dirname(__filename);
 
 let win;
 let wss;
+let serverStatus = {
+  started: false,
+  reused: false,
+  port: Number(process.env.WS_PORT || 3002),
+  host: "127.0.0.1",
+  url: `ws://localhost:${Number(process.env.WS_PORT || 3002)}`,
+  error: null,
+  message: "waiting to start",
+};
 
 const isDev = !app.isPackaged;
 const SERVER_PORT = process.env.SERVER_PORT || 3000;
@@ -37,7 +46,7 @@ function focusChromeWindow() {
   if (win) win.setAlwaysOnTop(false);
 
   const scriptPath = path.join(__dirname, "Script/Focus.py");
-  const pythonCommand = process.platform === "win32" ? "python" : "python3";
+  const pythonCommand = "python";
 
   console.log(`Launching Python script with: ${pythonCommand} ${scriptPath}`);
   const pythonProcess = spawn(pythonCommand, [scriptPath], {
@@ -70,13 +79,55 @@ function isPortInUse(port, host = WS_HOST) {
   });
 }
 
+function verifyWebSocketPort(port, host = WS_HOST, timeout = 1200) {
+  return new Promise((resolve) => {
+    const client = new WebSocket(`ws://${host}:${port}`);
+    const timer = setTimeout(() => {
+      client.terminate();
+      resolve(false);
+    }, timeout);
+
+    client.on("open", () => {
+      clearTimeout(timer);
+      client.terminate();
+      resolve(true);
+    });
+
+    client.on("error", () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+  });
+}
+
 function startServer() {
   return new Promise(async (resolve, reject) => {
     console.log(`Checking WebSocket port ${WS_PORT}...`);
     const alreadyRunning = await isPortInUse(WS_PORT);
     if (alreadyRunning) {
-      console.log(`Detected an existing WebSocket server on port ${WS_PORT}, reusing it.`);
-      resolve();
+      console.log(`Port ${WS_PORT} is already in use, validating existing WebSocket server...`);
+      const isValidWs = await verifyWebSocketPort(WS_PORT);
+      if (isValidWs) {
+        serverStatus = {
+          ...serverStatus,
+          started: true,
+          reused: true,
+          message: `Reusing existing WebSocket server on ${WS_URL}`,
+        };
+        console.log(serverStatus.message);
+        resolve();
+        return;
+      }
+
+      const errorMessage = `Port ${WS_PORT} is in use by another process and is not a compatible WebSocket server.`;
+      serverStatus = {
+        ...serverStatus,
+        started: false,
+        error: errorMessage,
+        message: errorMessage,
+      };
+      console.error(errorMessage);
+      reject(new Error(errorMessage));
       return;
     }
 
@@ -88,7 +139,13 @@ function startServer() {
     wss = new WebSocketServer({ port: WS_PORT });
 
     wss.on("listening", () => {
-      console.log(`WS Server running on ws://localhost:${WS_PORT}`);
+      serverStatus = {
+        ...serverStatus,
+        started: true,
+        reused: false,
+        message: `WebSocket server running on ${WS_URL}`,
+      };
+      console.log(serverStatus.message);
       resolve();
     });
 
@@ -154,19 +211,31 @@ function createWindow() {
   win.setIcon(path.join(__dirname, "assets/AppIcon.ico"));
   console.log("Window created");
 
-  const url = isDev
-    ? "http://localhost:5173"
-    : "https://quicklubch.netlify.app/";
-  console.log(`Loading URL: ${url}`);
-
-  win.loadURL(url).catch((err) => {
-    console.error("Failed to load URL:", err);
-    setTimeout(() => {
-      win.loadURL(url).catch((retryErr) => {
-        console.error("Failed to load URL on retry:", retryErr);
+  if (isDev) {
+    const url = "http://localhost:5173";
+    console.log(`Loading URL: ${url}`);
+    win.loadURL(url).catch((err) => {
+      console.error("Failed to load URL:", err);
+      setTimeout(() => {
+        win.loadURL(url).catch((retryErr) => {
+          console.error("Failed to load URL on retry:", retryErr);
+        });
+      }, 2000);
+    });
+  } else {
+    const indexHtml = path.join(__dirname, "dist", "index.html");
+    console.log(`Loading local production UI from ${indexHtml}`);
+    win
+      .loadFile(indexHtml)
+      .catch((err) => {
+        console.error("Failed to load local production UI:", err);
+        const fallbackUrl = "https://quicklubch.netlify.app/";
+        console.log(`Falling back to remote URL: ${fallbackUrl}`);
+        win.loadURL(fallbackUrl).catch((retryErr) => {
+          console.error("Failed to load fallback remote URL:", retryErr);
+        });
       });
-    }, 2000);
-  });
+  }
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -232,6 +301,8 @@ ipcMain.on("resize-window", (event, payload) => {
 });
 
 ipcMain.handle("get-server-url", () => SERVER_URL);
+
+ipcMain.handle("get-server-status", () => serverStatus);
 
 ipcMain.handle("get-env-info", () => ({
   isDev,

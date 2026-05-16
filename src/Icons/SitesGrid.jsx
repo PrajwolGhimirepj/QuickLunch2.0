@@ -2,97 +2,90 @@ import React, { useState, useEffect, useRef } from "react";
 import "./SitesGrid.css";
 import Flower from "./Flower.jpg";
 
-const SitesGrid = ({ close }) => {
-  const [sites, setSites] = useState([]);
-  const [tabs, setTabs] = useState([]);
-  const [activeTab, setActiveTab] = useState(null);
+const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromProps = [], activeTab: activeTabProp = null, sendMessage }) => {
+  const [sites, setSites] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("sites") || "[]");
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
+
 
   const [initHeight, setInitHeight] = useState(0);
-
-
-  const [loaded, setLoaded] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState({ connected: false, attempts: 0, error: null, lastMessage: null, lastUpdated: null });
 
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
 
   const [draggedIndex, setDraggedIndex] = useState(null);
 
-  const wsRef = useRef(null);
-  const reconnectTimeoutRef = useRef(null);
+  const openingUrlsRef = useRef(new Set());
+  const openTimeoutsRef = useRef({});
+  const openedTabsSetRef = useRef(new Set());
 
-  // WebSocket connection
+  const reportConnection = (updates) => {
+    setConnectionStatus((prev) => {
+      const next = { ...prev, ...updates };
+      if (onConnectionUpdate) onConnectionUpdate(next);
+      return next;
+    });
+  };
+
+  // WebSocket connection is handled at the App level and provided via props.
+
+  // Cleanup any pending open timeouts on unmount
   useEffect(() => {
-    const connect = () => {
-      console.log("Attempting to connect to WebSocket...");
-      wsRef.current = new WebSocket("ws://localhost:3002");
-
-      wsRef.current.onopen = () => {
-        console.log("WS connected");
-      };
-
-      wsRef.current.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-
-        if (data.tabs) {
-          setTabs(data.tabs);
-        }
-
-        if (data.activeTab) {
-          setActiveTab(data.activeTab);
-        }
-      };
-
-      wsRef.current.onerror = (error) => {
-        console.error("WS error:", error);
-      };
-
-      wsRef.current.onclose = () => {
-        console.log("WS disconnected, retrying in 2 seconds...");
-        reconnectTimeoutRef.current = setTimeout(connect, 2000);
-      };
-    };
-
-    // Wait 1 second before initial connection to ensure server is ready
-    const initialDelay = setTimeout(connect, 1000);
-
     return () => {
-      clearTimeout(initialDelay);
-      clearTimeout(reconnectTimeoutRef.current);
-      wsRef.current?.close();
+      try {
+        Object.values(openTimeoutsRef.current || {}).forEach((t) => clearTimeout(t));
+      } catch (e) {
+        // ignore
+      }
+      openingUrlsRef.current?.clear();
+      openTimeoutsRef.current = {};
     };
   }, []);
 
-  // Load from localStorage
+  // Persist sites to localStorage whenever the list changes
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("sites") || "[]");
-    setSites(saved);
-    setLoaded(true);
-  }, []);
+    localStorage.setItem("sites", JSON.stringify(sites));
+  }, [sites]);
 
-  // Save to localStorage
+  // Keep a quick lookup set of exact tab URLs reported by the extension
   useEffect(() => {
-    if (loaded) {
-      localStorage.setItem("sites", JSON.stringify(sites));
+    try {
+      openedTabsSetRef.current = new Set((tabsFromProps || []).map((t) => t.url));
+    } catch (e) {
+      openedTabsSetRef.current = new Set();
     }
-  }, [sites, loaded]);
+  }, [tabsFromProps]);
 
-
-  // Normalize URL
+  // Normalize URL for comparison (hostname + pathname, ignoring query/hash)
   const normalizeUrl = (input) => {
     if (!input) return "";
     try {
       const url = new URL(
         input.startsWith("http") ? input : "https://" + input,
       );
-      return url.hostname;
+      // Compare hostname + pathname (no query params or hash)
+      const normalized = url.hostname + url.pathname;
+      return normalized.toLowerCase();
     } catch {
-      return input;
+      return input.toLowerCase();
     }
   };
 
   // Filter invalid Chrome tabs
   const isValidTab = (url) =>
     url && !url.startsWith("chrome://") && !url.startsWith("about:");
+
+  // Check whether a site already exists in the saved list
+  const siteExists = (urlToCheck) => {
+    const normalized = normalizeUrl(urlToCheck);
+    return sites.some((site) => normalizeUrl(site.url) === normalized);
+  };
 
   // Get favicon
   const getFaviconUrl = (siteUrl) => {
@@ -104,26 +97,81 @@ const SitesGrid = ({ close }) => {
     }
   };
 
+  const renderBackground = () => {
+    if (!backgroundMedia || !backgroundMedia.src) {
+      return <img src="Untitled-1.png" alt="Background" />;
+    }
+
+    const isVideo = backgroundMedia.type?.startsWith("video/");
+    return isVideo ? (
+      <video
+        src={backgroundMedia.src}
+        autoPlay
+        loop
+        muted
+        playsInline
+      />
+    ) : (
+      <img src={backgroundMedia.src} alt="Background" />
+    );
+  };
+
   // Open or focus site
  const handleOpenSite = (site) => {
-  const existingTab = tabs.find(
-    (tab) => normalizeUrl(tab.url) === normalizeUrl(site.url),
-  );
+  const siteNormalized = normalizeUrl(site.url);
+
+  // Prevent duplicate open attempts for the same URL
+  if (openingUrlsRef.current.has(siteNormalized)) {
+    console.log(`[handleOpenSite] Already opening ${siteNormalized}, ignoring duplicate click.`);
+    return;
+  }
+
+  console.log(`[handleOpenSite] Looking for: "${siteNormalized}"`);
+
+  // First prefer strict, letter-to-letter match against tabs reported by extension
+  if (openedTabsSetRef.current.has(site.url)) {
+    const exactTab = tabsFromProps.find((tab) => tab.url === site.url);
+    if (exactTab) {
+      console.log(`[handleOpenSite] Exact URL match found (id=${exactTab.id}), focusing...`);
+      window.electronAPI?.focusChrome();
+      sendMessage?.({ action: "focus-tab", tabId: exactTab.id });
+      return;
+    }
+  }
+
+  const findMatchingTab = () =>
+    tabsFromProps.find((tab) => normalizeUrl(tab.url) === siteNormalized);
+
+  const existingTab = findMatchingTab();
 
   if (existingTab) {
-    //  Focus Chrome first (ffi-napi is ~5ms, no delay needed)
+    console.log(`[handleOpenSite] Found matching tab (id=${existingTab.id}), focusing...`);
     window.electronAPI?.focusChrome();
-
-    // Send tab switch immediately after
-    wsRef.current?.send(
-      JSON.stringify({
-        action: "focus-tab",
-        tabId: existingTab.id,
-      })
-    );
-  } else {
-    window.open(site.url, "_blank");
+    sendMessage?.({ action: "focus-tab", tabId: existingTab.id });
+    return;
   }
+
+  // Mark as opening to debounce repeated clicks
+  openingUrlsRef.current.add(siteNormalized);
+
+  // Wait briefly to allow the extension/ws to refresh tabs (race condition fix)
+  const timeoutId = setTimeout(() => {
+    const rechecked = findMatchingTab();
+    if (rechecked) {
+      console.log(`[handleOpenSite] Tab appeared after delay (id=${rechecked.id}), focusing...`);
+      window.electronAPI?.focusChrome();
+      sendMessage?.({ action: "focus-tab", tabId: rechecked.id });
+    } else {
+      console.log(`[handleOpenSite] No matching tab after delay, opening new window: ${site.url}`);
+      window.open(site.url, "_blank");
+    }
+
+    // cleanup
+    openingUrlsRef.current.delete(siteNormalized);
+    delete openTimeoutsRef.current[siteNormalized];
+  }, 300);
+
+  openTimeoutsRef.current[siteNormalized] = timeoutId;
 };
 
   // Add manual site
@@ -132,6 +180,12 @@ const SitesGrid = ({ close }) => {
 
     const finalUrl = url.startsWith("http") ? url : "https://" + url;
 
+    if (siteExists(finalUrl)) {
+      alert("Already saved",finalUrl);
+      
+      return;
+    }
+
     const newSite = {
       name: name || finalUrl,
       url: finalUrl,
@@ -139,45 +193,42 @@ const SitesGrid = ({ close }) => {
     };
 
     setSites((prev) => [...prev, newSite]);
-
-    setShowPopup(false);
     setName("");
     setUrl("");
   };
 
   // Add current tab
   const addCurrentTab = () => {
-    if (!activeTab || !activeTab.url) {
+    if (!activeTabProp || !activeTabProp.url) {
       alert("No active tab found");
       return;
     }
 
-    if (!isValidTab(activeTab.url)) return;
+    if (!isValidTab(activeTabProp.url)) return;
 
-    const exists = sites.some(
-      (site) => normalizeUrl(site.url) === normalizeUrl(activeTab.url),
-    );
-
-    if (exists) {
+    if (siteExists(activeTabProp.url)) {
       alert("Already saved");
       return;
     }
 
     const newSite = {
-      name: activeTab.title || activeTab.url,
-      url: activeTab.url,
-      icon: getFaviconUrl(activeTab.url),
+      name: activeTabProp.title || activeTabProp.url,
+      url: activeTabProp.url,
+      icon: getFaviconUrl(activeTabProp.url),
     };
 
     setSites((prev) => [...prev, newSite]);
   };
 
   // Delete site
-  const deleteSite = (index) => setSites(sites.filter((_, i) => i !== index));
+  const deleteSite = (siteUrl) => {
+    const normalizedUrl = normalizeUrl(siteUrl);
+    setSites((prev) => prev.filter((site) => normalizeUrl(site.url) !== normalizedUrl));
+  };
 
   // Active tab highlight
   const isActiveTab = (site) => {
-    return activeTab && normalizeUrl(site.url) === normalizeUrl(activeTab.url);
+    return activeTabProp && normalizeUrl(site.url) === normalizeUrl(activeTabProp.url);
   };
 
   // Drag handlers
@@ -204,9 +255,12 @@ const SitesGrid = ({ close }) => {
   };
 
   return (
-    <div className="container" style={{ height: initHeight || "auto" }}>
+    
+    <div className="container" style={{ height: initHeight || "auto" }} >
       <div className="background">
-        <img src="Untitled-1.png" alt="" />
+      <div className="fade"></div>
+        {renderBackground()}
+
       </div>
 
       <div className="grid">
@@ -242,7 +296,7 @@ const SitesGrid = ({ close }) => {
               className="delete-btn"
               onClick={(e) => {
                 e.stopPropagation();
-                deleteSite(i);
+                deleteSite(site.url);
               }}
             >
               x

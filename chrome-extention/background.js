@@ -1,16 +1,32 @@
 let socket;
+let reconnectTimer;
 
 function connectWS() {
+  if (socket && socket.readyState !== WebSocket.CLOSED) {
+    return;
+  }
+
   socket = new WebSocket("ws://localhost:3002");
 
   socket.onopen = () => {
     console.log("Connected to server");
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
     sendAllTabsWithActive();
+  };
+
+  socket.onerror = (error) => {
+    console.error("WebSocket error:", error);
+    if (socket.readyState !== WebSocket.OPEN && socket.readyState !== WebSocket.CONNECTING) {
+      socket.close();
+    }
   };
 
   socket.onclose = () => {
     console.log("Disconnected, retrying...");
-    setTimeout(connectWS, 2000);
+    reconnectTimer = setTimeout(connectWS, 2000);
   };
 
   socket.onmessage = (event) => {
@@ -83,12 +99,23 @@ chrome.tabs.onActivated.addListener(() => {
   sendAllTabsWithActive();
 });
 
-// Listen for tab updates (URL changes, page load)
+// Listen for tab updates (URL changes, page load, title changes)
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === "complete") {
-    console.log("Tab updated");
+  // Send updates on multiple status changes, not just "complete"
+  if (changeInfo.status || changeInfo.url || changeInfo.title) {
+    console.log("Tab updated:", { tabId, status: changeInfo.status, hasUrl: !!changeInfo.url });
     sendAllTabsWithActive();
   }
 });
+
+// Periodic refresh every 2 seconds as a safety net
+setInterval(() => {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    sendAllTabsWithActive();
+  }
+}, 2000);
+
+chrome.runtime.onStartup.addListener(connectWS);
+chrome.runtime.onInstalled.addListener(connectWS);
 
 connectWS();
