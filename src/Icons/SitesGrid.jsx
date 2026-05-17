@@ -255,8 +255,8 @@ const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromP
   };
 
   return (
-    
-    <div className="container" style={{ height: initHeight || "auto" }} >
+    // style={{ height: initHeight || "auto" }}
+    <div className="container"  >
       <div className="background">
       <div className="fade"></div>
         {renderBackground()}

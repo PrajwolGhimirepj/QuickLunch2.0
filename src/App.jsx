@@ -36,7 +36,7 @@ const App = () => {
     }
   });
   const [contextMenu,  setContextMenu]  = useState(null);
-  const [debugMenue, SetdebugMenue] = useState(true);
+  const [debugMenue, SetdebugMenue] = useState(false);
   const [envInfo, setEnvInfo] = useState(null);
   const [serverStatus, setServerStatus] = useState({ started: false, url: "ws://localhost:3002", error: null, message: "unknown" });
   const [wsDebug, setWsDebug] = useState({ connected: false, attempts: 0, error: null, lastMessage: null, lastUpdated: null });

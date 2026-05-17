@@ -1,6 +1,6 @@
 .container {
   width: 350px;
- height: 500px;
+  height: 200px;
   padding: 10px;
   border-radius: 12px;
   overflow: hidden;
@@ -40,7 +40,7 @@ position: relative;
 }
 
 .card:hover {
-  background: #4f4c4c;
+  background: #4f4c4c73;
   border-radius: 4px;
 }
 
@@ -57,7 +57,7 @@ position: relative;
 .ActionsContainer {
   display: flex;
   width: 350px;
-  height: 300px;
+ 
   position: absolute;
   bottom: 19px;
   align-items: center;
@@ -75,7 +75,7 @@ position: relative;
 .actions button {
   padding: 6px;
   width: 30px;
-  height: 60px;
+
   border-radius: 10px;
   font-size: 14px;
   cursor: pointer;
