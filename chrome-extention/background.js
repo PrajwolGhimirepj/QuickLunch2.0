@@ -93,10 +93,31 @@ function sendAllTabsWithActive() {
   });
 }
 
-// Listen for tab changes
+// Listen for tab activation
 chrome.tabs.onActivated.addListener(() => {
-  console.log("Tab changed");
+  console.log("Tab activated");
   sendAllTabsWithActive();
+});
+
+// Listen for tab creation
+chrome.tabs.onCreated.addListener((tab) => {
+  console.log("Tab created:", tab.id);
+  sendAllTabsWithActive();
+});
+
+// Listen for tab removal
+chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+  console.log("Tab removed:", tabId);
+  sendAllTabsWithActive();
+});
+
+// Listen for tab updates (URL, title, etc.)
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // Only send update if URL or title changed
+  if (changeInfo.url || changeInfo.title || changeInfo.status === "complete") {
+    console.log("Tab updated:", tabId, changeInfo);
+    sendAllTabsWithActive();
+  }
 });
 
 // Listen for tab updates (URL changes, page load, title changes)

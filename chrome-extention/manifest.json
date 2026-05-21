@@ -2,7 +2,12 @@
   "manifest_version": 3,
   "name": "Tab Sync WS",
   "version": "1.0",
-  "permissions": ["tabs"],
+  "permissions": [
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "background.js"
   }

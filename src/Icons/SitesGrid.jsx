@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./SitesGrid.css";
-import Flower from "./Flower.jpg";
+import Background from "./BackGround.png";
 
 const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromProps = [], activeTab: activeTabProp = null, sendMessage }) => {
   const [sites, setSites] = useState(() => {
@@ -93,13 +93,13 @@ const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromP
       const hostname = new URL(siteUrl).hostname;
       return `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`;
     } catch {
-      return Flower;
+      return  Background;
     }
   };
 
   const renderBackground = () => {
     if (!backgroundMedia || !backgroundMedia.src) {
-      return <img src="Untitled-1.png" alt="Background" />;
+      return <img src={ Background} alt="Background" />;
     }
 
     const isVideo = backgroundMedia.type?.startsWith("video/");
@@ -283,10 +283,10 @@ const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromP
                   onLoad={(e) => {
                     const img = e.currentTarget;
                     if (img.naturalWidth <= 16 || img.naturalHeight <= 16) {
-                      img.src = Flower;
+                      img.src =  Background;
                     }
                   }}
-                  onError={(e) => (e.currentTarget.src = Flower)}
+                  onError={(e) => (e.currentTarget.src =  Background)}
                 />
                 <p className="site-name">{site.name}</p>
               </div>

@@ -70,8 +70,9 @@
   top: 0px;
   left: 0px;
   position: absolute;
-  height: 20px;
-  width: 20px;
+  height: 10px;
+  width: 10px;
+ 
 
   z-index: 3;
   -webkit-app-region: drag;
@@ -82,9 +83,27 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   padding: 8px 0;
+  width: 150px;
+  height: 100px;
+  overflow: auto;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(10px);
+  scrollbar-width: 1px;
 }
+/* Chrome, Edge, Opera */
+.contextMenu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.contextMenu::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+.contextMenu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 
 .contextMenu button {
   display: block;

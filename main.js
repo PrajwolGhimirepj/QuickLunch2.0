@@ -31,6 +31,10 @@ const WS_URL = `ws://localhost:${WS_PORT}`;
 // 🔥 SINGLE INSTANCE LOCK
 const gotTheLock = app.requestSingleInstanceLock();
 
+if (process.platform === "win32") {
+  app.setAppUserModelId("com.prajwol.quicklunch");
+}
+
 if (!gotTheLock) {
   app.quit();
 } else {
@@ -200,6 +204,7 @@ function createWindow() {
     transparent: true,
     alwaysOnTop: true,
     resizable: false,
+    icon: path.join(__dirname, "assets/AppIcon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

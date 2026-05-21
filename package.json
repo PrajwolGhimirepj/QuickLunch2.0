@@ -48,6 +48,7 @@
   "build": {
     "appId": "com.prajwol.quicklunch",
     "productName": "QuickLunch",
+    "icon": "assets/AppIcon.ico",
 
     "asar": false,
 
@@ -68,6 +69,7 @@
 
     "win": {
       "target": "nsis",
+      "icon": "assets/AppIcon.ico",
       "artifactName": "${productName}-Setup.${ext}"
     }
   }
