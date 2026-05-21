@@ -28,7 +28,7 @@ const WS_PORT = Number(process.env.WS_PORT || 3002);
 const WS_HOST = "127.0.0.1";
 const WS_URL = `ws://localhost:${WS_PORT}`;
 
-// 🔥 SINGLE INSTANCE LOCK
+// SINGLE INSTANCE LOCK
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (process.platform === "win32") {
@@ -204,7 +204,7 @@ function createWindow() {
     transparent: true,
     alwaysOnTop: true,
     resizable: false,
-    icon: path.join(__dirname, "assets/AppIcon.ico"),
+    icon: path.join(__dirname, "assets/Icon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -213,7 +213,7 @@ function createWindow() {
     },
   });
 
-  win.setIcon(path.join(__dirname, "assets/AppIcon.ico"));
+  win.setIcon(path.join(__dirname, "assets/Icon.ico"));
   console.log("Window created");
 
   if (isDev) {

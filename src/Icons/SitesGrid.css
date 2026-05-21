@@ -43,7 +43,6 @@
 }
 
 .grid {
-
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(4, 1fr);
@@ -79,10 +78,11 @@
   max-width: 100%;
 }
 .ActionsContainer {
+  position: absolute;
   display: flex;
-  width: 350px;
   position: fixed;
   bottom: 19px;
+  left: 150px;
   align-items: center;
   justify-content: center;
 
@@ -165,13 +165,18 @@ button {
   background-color: #000000;
   opacity: 1;
 }
+.deleteimg{
+  object-fit: contain;
+  scale: 0.7;
+
+}
+
 
 .popup-actions {
   display: flex;
   align-items: center;
   gap: 10px;
 }
-
 .popup-actions button {
   padding-left: 10px;
   padding-right: 10px;

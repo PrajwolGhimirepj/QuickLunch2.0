@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./SitesGrid.css";
 import Background from "./BackGround.png";
+import Cross from "./Cross1.svg"
 
 const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromProps = [], activeTab: activeTabProp = null, sendMessage }) => {
   const [sites, setSites] = useState(() => {
@@ -299,7 +300,7 @@ const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromP
                 deleteSite(site.url);
               }}
             >
-              x
+         <img className="deleteimg" src={Cross} alt="Two black diagonal lines forming an X on white background, remove site button" />
             </button>
           </div>
         ))}

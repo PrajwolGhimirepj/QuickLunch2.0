@@ -24,10 +24,10 @@ function connectWS() {
     }
   };
 
-  socket.onclose = () => {
-    console.log("Disconnected, retrying...");
-    reconnectTimer = setTimeout(connectWS, 2000);
-  };
+  // socket.onclose = () => {
+  //   console.log("Disconnected, retrying...");
+  //   reconnectTimer = setTimeout(connectWS, 2000);
+  // };
 
   socket.onmessage = (event) => {
     try {
@@ -44,7 +44,7 @@ function connectWS() {
 
           console.log("Tab focused:", tab.id);
 
-          // ✅ Bring Chrome window to foreground
+    
           chrome.windows.update(tab.windowId, { focused: true }, () => {
             if (chrome.runtime.lastError) {
               console.error("Error focusing window:", chrome.runtime.lastError);
@@ -68,7 +68,7 @@ function sendAllTabsWithActive() {
         title: tab.title,
         url: tab.url,
         id: tab.id,
-        windowId: tab.windowId, // ✅ include windowId for future use
+        windowId: tab.windowId, //
       }));
 
       const activeTab = activeTabArr[0]
@@ -76,7 +76,7 @@ function sendAllTabsWithActive() {
             title: activeTabArr[0].title,
             url: activeTabArr[0].url,
             id: activeTabArr[0].id,
-            windowId: activeTabArr[0].windowId, // ✅ include windowId
+            windowId: activeTabArr[0].windowId, // 
           }
         : null;
 
@@ -91,7 +91,6 @@ function sendAllTabsWithActive() {
       }
     });
   });
-}
 
 // Listen for tab activation
 chrome.tabs.onActivated.addListener(() => {
@@ -130,11 +129,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 // Periodic refresh every 2 seconds as a safety net
-setInterval(() => {
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    sendAllTabsWithActive();
-  }
-}, 2000);
+// setInterval(() => {
+//   if (socket && socket.readyState === WebSocket.OPEN) {
+//     sendAllTabsWithActive();
+//   }
+// }, 2000);
 
 chrome.runtime.onStartup.addListener(connectWS);
 chrome.runtime.onInstalled.addListener(connectWS);
