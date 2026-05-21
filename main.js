@@ -204,7 +204,7 @@ function createWindow() {
     transparent: true,
     alwaysOnTop: true,
     resizable: false,
-    icon: path.join(__dirname, "assets/Icon.ico"),
+    icon: path.join(__dirname, "assets/favicon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -213,7 +213,7 @@ function createWindow() {
     },
   });
 
-  win.setIcon(path.join(__dirname, "assets/Icon.ico"));
+  win.setIcon(path.join(__dirname, "assets/favicon.ico"));
   console.log("Window created");
 
   if (isDev) {
