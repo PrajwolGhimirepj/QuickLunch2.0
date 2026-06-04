@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
-import SitesGrid from "./Icons/SitesGrid";
+import SitesGrid from "./SitesGrid/SitesGrid";
 
 const STORAGE_KEY_IMAGE = "app_custom_icon";
 const STORAGE_KEY_BACKGROUND = "app_custom_background";
@@ -306,12 +306,11 @@ const App = () => {
   return (
     <div
       ref={containerRef}
-      className="Container font"
+      className="AppContainer font"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onContextMenu={handleContextMenu}
     >
-      {/* Hidden file input */}
       <input
         type="file"
         accept="image/*,image/gif"
@@ -326,7 +325,6 @@ const App = () => {
         style={{ display: "none" }}
         onChange={handleBackgroundFileChange}
       />
-
       {/* Custom Size Dialog */}
       {customSize && (
         <div className="customSizeDialog">
@@ -361,7 +359,6 @@ const App = () => {
           </div>
         </div>
       )}
-
       {/* Context Menu */}
       {contextMenu && (
         <div
@@ -406,7 +403,6 @@ const App = () => {
           </button>
         </div>
       )}
-
       {debugMenue && (
         <div className="debugcontainer">
           <div style={{ padding: 12, fontSize: 12, color: "#111" }}>
@@ -476,7 +472,6 @@ const App = () => {
           </div>
         </div>
       )}
-      {/* Drag area */}
 
       {!opened && (
         <div
@@ -490,7 +485,6 @@ const App = () => {
         </div>
       )}
       <div className="dragable"></div>
-
       {opened && (
         <>
           <SitesGrid

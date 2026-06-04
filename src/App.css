@@ -25,11 +25,9 @@
   width: 100%;
   object-fit: contain;
 }
-.Container {
+.AppContainer {
   position: relative;
   display: flex;
-
-  width: 400px;
   width: max-content;
   overflow: hidden;
   flex-direction: column;
@@ -37,7 +35,6 @@
   justify-content: end;
   border-radius: 5px;
   color: rgb(0, 0, 0);
- 
 }
 
 @keyframes open {
@@ -62,7 +59,6 @@
 .reposition {
   height: 20px;
   width: 200px;
-
   -webkit-app-region: drag;
 }
 
@@ -72,7 +68,6 @@
   position: absolute;
   height: 10px;
   width: 10px;
- 
 
   z-index: 3;
   -webkit-app-region: drag;
@@ -103,7 +98,6 @@
 .contextMenu::-webkit-scrollbar-track {
   background: transparent;
 }
-
 
 .contextMenu button {
   display: block;
@@ -232,6 +226,7 @@
   z-index: 300;
   width: 100%;
   max-height: 260px;
+  background-color: aliceblue;
   background-color: rgba(255, 255, 255, 0.92);
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
@@ -248,7 +243,7 @@
   font-weight: 700;
 }
 
-.Button{
+.Button {
   display: flex;
   align-items: center;
   justify-content: center;

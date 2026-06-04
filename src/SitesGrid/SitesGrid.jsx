@@ -1,9 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./SitesGrid.css";
-import Background from "./BackGround.png";
-import Cross from "./Cross1.svg"
+import Background from "./Assets/BackGround.png";
+import Cross from "./Assets/Cross1.svg";
 
-const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromProps = [], activeTab: activeTabProp = null, sendMessage }) => {
+const SitesGrid = ({
+  close,
+  onConnectionUpdate,
+  backgroundMedia,
+  tabs: tabsFromProps = [],
+  activeTab: activeTabProp = null,
+  sendMessage,
+}) => {
   const [sites, setSites] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("sites") || "[]");
@@ -13,9 +20,14 @@ const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromP
     }
   });
 
-
   const [initHeight, setInitHeight] = useState(0);
-  const [connectionStatus, setConnectionStatus] = useState({ connected: false, attempts: 0, error: null, lastMessage: null, lastUpdated: null });
+  const [connectionStatus, setConnectionStatus] = useState({
+    connected: false,
+    attempts: 0,
+    error: null,
+    lastMessage: null,
+    lastUpdated: null,
+  });
 
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
@@ -40,7 +52,9 @@ const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromP
   useEffect(() => {
     return () => {
       try {
-        Object.values(openTimeoutsRef.current || {}).forEach((t) => clearTimeout(t));
+        Object.values(openTimeoutsRef.current || {}).forEach((t) =>
+          clearTimeout(t),
+        );
       } catch (e) {
         // ignore
       }
@@ -57,7 +71,9 @@ const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromP
   // Keep a quick lookup set of exact tab URLs reported by the extension
   useEffect(() => {
     try {
-      openedTabsSetRef.current = new Set((tabsFromProps || []).map((t) => t.url));
+      openedTabsSetRef.current = new Set(
+        (tabsFromProps || []).map((t) => t.url),
+      );
     } catch (e) {
       openedTabsSetRef.current = new Set();
     }
@@ -94,86 +110,90 @@ const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromP
       const hostname = new URL(siteUrl).hostname;
       return `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`;
     } catch {
-      return  Background;
+      return Background;
     }
   };
 
   const renderBackground = () => {
     if (!backgroundMedia || !backgroundMedia.src) {
-      return <img src={ Background} alt="Background" />;
+      return <img src={Background} alt="Background" />;
     }
 
     const isVideo = backgroundMedia.type?.startsWith("video/");
     return isVideo ? (
-      <video
-        src={backgroundMedia.src}
-        autoPlay
-        loop
-        muted
-        playsInline
-      />
+      <video src={backgroundMedia.src} autoPlay loop muted playsInline />
     ) : (
       <img src={backgroundMedia.src} alt="Background" />
     );
   };
 
   // Open or focus site
- const handleOpenSite = (site) => {
-  const siteNormalized = normalizeUrl(site.url);
+  const handleOpenSite = (site) => {
+    const siteNormalized = normalizeUrl(site.url);
 
-  // Prevent duplicate open attempts for the same URL
-  if (openingUrlsRef.current.has(siteNormalized)) {
-    console.log(`[handleOpenSite] Already opening ${siteNormalized}, ignoring duplicate click.`);
-    return;
-  }
-
-  console.log(`[handleOpenSite] Looking for: "${siteNormalized}"`);
-
-  // First prefer strict, letter-to-letter match against tabs reported by extension
-  if (openedTabsSetRef.current.has(site.url)) {
-    const exactTab = tabsFromProps.find((tab) => tab.url === site.url);
-    if (exactTab) {
-      console.log(`[handleOpenSite] Exact URL match found (id=${exactTab.id}), focusing...`);
-      window.electronAPI?.focusChrome();
-      sendMessage?.({ action: "focus-tab", tabId: exactTab.id });
+    // Prevent duplicate open attempts for the same URL
+    if (openingUrlsRef.current.has(siteNormalized)) {
+      console.log(
+        `[handleOpenSite] Already opening ${siteNormalized}, ignoring duplicate click.`,
+      );
       return;
     }
-  }
 
-  const findMatchingTab = () =>
-    tabsFromProps.find((tab) => normalizeUrl(tab.url) === siteNormalized);
+    console.log(`[handleOpenSite] Looking for: "${siteNormalized}"`);
 
-  const existingTab = findMatchingTab();
-
-  if (existingTab) {
-    console.log(`[handleOpenSite] Found matching tab (id=${existingTab.id}), focusing...`);
-    window.electronAPI?.focusChrome();
-    sendMessage?.({ action: "focus-tab", tabId: existingTab.id });
-    return;
-  }
-
-  // Mark as opening to debounce repeated clicks
-  openingUrlsRef.current.add(siteNormalized);
-
-  // Wait briefly to allow the extension/ws to refresh tabs (race condition fix)
-  const timeoutId = setTimeout(() => {
-    const rechecked = findMatchingTab();
-    if (rechecked) {
-      console.log(`[handleOpenSite] Tab appeared after delay (id=${rechecked.id}), focusing...`);
-      window.electronAPI?.focusChrome();
-      sendMessage?.({ action: "focus-tab", tabId: rechecked.id });
-    } else {
-      console.log(`[handleOpenSite] No matching tab after delay, opening new window: ${site.url}`);
-      window.open(site.url, "_blank");
+    // First prefer strict, letter-to-letter match against tabs reported by extension
+    if (openedTabsSetRef.current.has(site.url)) {
+      const exactTab = tabsFromProps.find((tab) => tab.url === site.url);
+      if (exactTab) {
+        console.log(
+          `[handleOpenSite] Exact URL match found (id=${exactTab.id}), focusing...`,
+        );
+        window.electronAPI?.focusChrome();
+        sendMessage?.({ action: "focus-tab", tabId: exactTab.id });
+        return;
+      }
     }
 
-    // cleanup
-    openingUrlsRef.current.delete(siteNormalized);
-    delete openTimeoutsRef.current[siteNormalized];
-  }, 300);
+    const findMatchingTab = () =>
+      tabsFromProps.find((tab) => normalizeUrl(tab.url) === siteNormalized);
 
-  openTimeoutsRef.current[siteNormalized] = timeoutId;
-};
+    const existingTab = findMatchingTab();
+
+    if (existingTab) {
+      console.log(
+        `[handleOpenSite] Found matching tab (id=${existingTab.id}), focusing...`,
+      );
+      window.electronAPI?.focusChrome();
+      sendMessage?.({ action: "focus-tab", tabId: existingTab.id });
+      return;
+    }
+
+    // Mark as opening to debounce repeated clicks
+    openingUrlsRef.current.add(siteNormalized);
+
+    // Wait briefly to allow the extension/ws to refresh tabs (race condition fix)
+    const timeoutId = setTimeout(() => {
+      const rechecked = findMatchingTab();
+      if (rechecked) {
+        console.log(
+          `[handleOpenSite] Tab appeared after delay (id=${rechecked.id}), focusing...`,
+        );
+        window.electronAPI?.focusChrome();
+        sendMessage?.({ action: "focus-tab", tabId: rechecked.id });
+      } else {
+        console.log(
+          `[handleOpenSite] No matching tab after delay, opening new window: ${site.url}`,
+        );
+        window.open(site.url, "_blank");
+      }
+
+      // cleanup
+      openingUrlsRef.current.delete(siteNormalized);
+      delete openTimeoutsRef.current[siteNormalized];
+    }, 300);
+
+    openTimeoutsRef.current[siteNormalized] = timeoutId;
+  };
 
   // Add manual site
   const addSite = () => {
@@ -182,8 +202,8 @@ const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromP
     const finalUrl = url.startsWith("http") ? url : "https://" + url;
 
     if (siteExists(finalUrl)) {
-      alert("Already saved",finalUrl);
-      
+      alert("Already saved", finalUrl);
+
       return;
     }
 
@@ -224,12 +244,17 @@ const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromP
   // Delete site
   const deleteSite = (siteUrl) => {
     const normalizedUrl = normalizeUrl(siteUrl);
-    setSites((prev) => prev.filter((site) => normalizeUrl(site.url) !== normalizedUrl));
+    setSites((prev) =>
+      prev.filter((site) => normalizeUrl(site.url) !== normalizedUrl),
+    );
   };
 
   // Active tab highlight
   const isActiveTab = (site) => {
-    return activeTabProp && normalizeUrl(site.url) === normalizeUrl(activeTabProp.url);
+    return (
+      activeTabProp &&
+      normalizeUrl(site.url) === normalizeUrl(activeTabProp.url)
+    );
   };
 
   // Drag handlers
@@ -256,12 +281,10 @@ const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromP
   };
 
   return (
-    // style={{ height: initHeight || "auto" }}
-    <div className="container"  >
+    <div className="container">
       <div className="background">
-      <div className="fade"></div>
+        <div className="fade"></div>
         {renderBackground()}
-
       </div>
 
       <div className="grid">
@@ -284,10 +307,10 @@ const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromP
                   onLoad={(e) => {
                     const img = e.currentTarget;
                     if (img.naturalWidth <= 16 || img.naturalHeight <= 16) {
-                      img.src =  Background;
+                      img.src = Background;
                     }
                   }}
-                  onError={(e) => (e.currentTarget.src =  Background)}
+                  onError={(e) => (e.currentTarget.src = Background)}
                 />
                 <p className="site-name">{site.name}</p>
               </div>
@@ -300,7 +323,11 @@ const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromP
                 deleteSite(site.url);
               }}
             >
-         <img className="deleteimg" src={Cross} alt="Two black diagonal lines forming an X on white background, remove site button" />
+              <img
+                className="deleteimg"
+                src={Cross}
+                alt="Two black diagonal lines forming an X on white background, remove site button"
+              />
             </button>
           </div>
         ))}
@@ -311,8 +338,6 @@ const SitesGrid = ({ close, onConnectionUpdate, backgroundMedia, tabs: tabsFromP
           <button onClick={addCurrentTab}>+</button>
         </div>
       </div>
-
- 
     </div>
   );
 };

@@ -4,7 +4,6 @@
   "version": "1.0.0",
   "type": "module",
   "main": "main.js",
-
   "scripts": {
     "dev": "vite",
     "electron": "electron .",
@@ -15,18 +14,13 @@
     "preview": "vite preview",
     "postinstall": "electron-builder install-app-deps"
   },
-
   "dependencies": {
-    "@reduxjs/toolkit": "^2.11.2",
     "firebase": "^12.11.0",
     "koffi": "^2.16.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-redux": "^9.2.0",
-    "redux": "^5.0.1",
     "ws": "^8.20.0"
   },
-
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@types/react": "^19.2.14",
@@ -44,29 +38,23 @@
     "vite": "^8.0.1",
     "wait-on": "^9.0.4"
   },
-
   "build": {
     "appId": "com.prajwol.quicklunch",
     "productName": "QuickLunch",
     "icon": "assets/favicon.ico",
-
     "asar": false,
-
     "directories": {
       "output": "release"
     },
-
     "files": [
       "**/*"
     ],
-
     "extraResources": [
       {
         "from": "./scripts",
         "to": "scripts"
       }
     ],
-
     "win": {
       "target": "nsis",
       "icon": "assets/favicon.ico",

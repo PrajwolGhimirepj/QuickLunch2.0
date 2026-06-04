@@ -172,6 +172,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       status: changeInfo.status,
       hasUrl: !!changeInfo.url,
     });
+    s;
     sendAllTabsWithActive();
   }
 });
