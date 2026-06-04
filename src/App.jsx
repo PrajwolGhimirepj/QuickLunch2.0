@@ -4,13 +4,13 @@ import SitesGrid from "./Icons/SitesGrid";
 
 const STORAGE_KEY_IMAGE = "app_custom_icon";
 const STORAGE_KEY_BACKGROUND = "app_custom_background";
-const STORAGE_KEY_SIZE  = "app_icon_size";
+const STORAGE_KEY_SIZE = "app_icon_size";
 
 const App = () => {
-  const containerRef  = useRef(null);
-  const fileInputRef  = useRef(null);
-  const bgInputRef    = useRef(null);
-  const hoverTimeout  = useRef(null);
+  const containerRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const bgInputRef = useRef(null);
+  const hoverTimeout = useRef(null);
 
   // Initialise from localStorage so state is already correct on first render
   const [size, setSize] = useState(() => {
@@ -22,24 +22,36 @@ const App = () => {
     }
   });
 
-  const [customSize,   setCustomSize]   = useState(false);
-  const [tempSize,     setTempSize]     = useState({ width: 70, height: 70 });
-  const [opened,       setOpened]       = useState(true);
-  const [customImage,  setCustomImage]  = useState(() => {
+  const [customSize, setCustomSize] = useState(false);
+  const [tempSize, setTempSize] = useState({ width: 70, height: 70 });
+  const [opened, setOpened] = useState(true);
+  const [customImage, setCustomImage] = useState(() => {
     return localStorage.getItem(STORAGE_KEY_IMAGE) || null;
   });
-  const [customBg,     setCustomBg]     = useState(() => {
+  const [customBg, setCustomBg] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEY_BACKGROUND) || "null");
     } catch {
       return null;
     }
   });
-  const [contextMenu,  setContextMenu]  = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
   const [debugMenue, SetdebugMenue] = useState(false);
   const [envInfo, setEnvInfo] = useState(null);
-  const [serverStatus, setServerStatus] = useState({ started: false, url: "ws://localhost:3002", error: null, message: "unknown" });
-  const [wsDebug, setWsDebug] = useState({ connected: false, attempts: 0, error: null, lastMessage: null, lastUpdated: null });
+  const [serverStatus, setServerStatus] = useState({
+    started: false,
+    url: null,
+    error: null,
+    message: "unknown",
+  });
+  const [wsUrl, setWsUrl] = useState(null);
+  const [wsDebug, setWsDebug] = useState({
+    connected: false,
+    attempts: 0,
+    error: null,
+    lastMessage: null,
+    lastUpdated: null,
+  });
   const [tabs, setTabs] = useState([]);
   const [activeTab, setActiveTab] = useState(null);
 
@@ -48,7 +60,13 @@ const App = () => {
   const attemptRef = useRef(0);
 
   useEffect(() => {
-    if (!window.electronAPI?.getEnvInfo || !window.electronAPI?.getServerStatus) return;
+    if (
+      !window.electronAPI?.getEnvInfo ||
+      !window.electronAPI?.getServerStatus
+    ) {
+      setWsUrl("ws://localhost:3002");
+      return;
+    }
 
     window.electronAPI
       .getEnvInfo()
@@ -59,10 +77,18 @@ const App = () => {
 
     window.electronAPI
       .getServerStatus()
-      .then((status) => setServerStatus(status))
+      .then((status) => {
+        setServerStatus(status);
+        setWsUrl(status?.url || "ws://localhost:3002");
+      })
       .catch((err) => {
         console.error("Failed to load server status:", err);
-        setServerStatus((prev) => ({ ...prev, started: false, error: err.message || String(err) }));
+        setServerStatus((prev) => ({
+          ...prev,
+          started: false,
+          error: err.message || String(err),
+        }));
+        setWsUrl("ws://localhost:3002");
       });
   }, []);
 
@@ -76,17 +102,24 @@ const App = () => {
 
   // Persistent WebSocket connection managed at App level so it survives SitesGrid mount/unmount
   useEffect(() => {
+    if (!wsUrl) return;
+
     const connect = () => {
       attemptRef.current += 1;
-      updateWsDebug({ connected: false, error: null, attempts: attemptRef.current });
+      updateWsDebug({
+        connected: false,
+        error: null,
+        attempts: attemptRef.current,
+      });
 
-      wsRef.current = new WebSocket("ws://localhost:3002");
+      wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
         console.log("WS connected (App)");
         updateWsDebug({ connected: true, error: null });
         try {
-          if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({ type: "health-check" }));
+          if (wsRef.current?.readyState === WebSocket.OPEN)
+            wsRef.current.send(JSON.stringify({ type: "health-check" }));
         } catch (e) {}
       };
 
@@ -95,7 +128,10 @@ const App = () => {
           const data = JSON.parse(event.data);
           if (data.tabs) setTabs(data.tabs);
           if (data.activeTab) setActiveTab(data.activeTab);
-          updateWsDebug({ lastMessage: data, lastUpdated: new Date().toISOString() });
+          updateWsDebug({
+            lastMessage: data,
+            lastUpdated: new Date().toISOString(),
+          });
         } catch (e) {
           console.error("Invalid WS message (App):", e);
         }
@@ -103,7 +139,10 @@ const App = () => {
 
       wsRef.current.onerror = (err) => {
         console.error("WS error (App):", err);
-        updateWsDebug({ connected: false, error: err?.message || "WebSocket error" });
+        updateWsDebug({
+          connected: false,
+          error: err?.message || "WebSocket error",
+        });
       };
 
       wsRef.current.onclose = () => {
@@ -120,7 +159,7 @@ const App = () => {
       clearTimeout(reconnectTimeoutRef.current);
       wsRef.current?.close();
     };
-  }, []);
+  }, [wsUrl]);
 
   const sendMessage = (payload) => {
     try {
@@ -247,8 +286,10 @@ const App = () => {
   };
 
   const handleSetSize = () => {
-    const width  = parseInt(document.getElementById("Width").value)  || size.width;
-    const height = parseInt(document.getElementById("Height").value) || size.height;
+    const width =
+      parseInt(document.getElementById("Width").value) || size.width;
+    const height =
+      parseInt(document.getElementById("Height").value) || size.height;
 
     if (width > 0 && height > 0) {
       setSize({ width, height }); // useEffect above persists this
@@ -258,9 +299,9 @@ const App = () => {
 
   const handleCloseDialog = () => setCustomSize(false);
 
-  const handelDebugMenue =()=>{
+  const handelDebugMenue = () => {
     SetdebugMenue(!debugMenue);
-  }
+  };
 
   return (
     <div
@@ -293,15 +334,29 @@ const App = () => {
             <h3>Custom Size</h3>
             <div className="sizeInput">
               <label>Height</label>
-              <input type="number" id="Height" defaultValue={size.height} min="30" />
+              <input
+                type="number"
+                id="Height"
+                defaultValue={size.height}
+                min="30"
+              />
             </div>
             <div className="sizeInput">
               <label>Width</label>
-              <input type="number" id="Width" defaultValue={size.width} min="30" />
+              <input
+                type="number"
+                id="Width"
+                defaultValue={size.width}
+                min="30"
+              />
             </div>
             <div className="actions">
-              <button onClick={handleSetSize}    className="font">Set</button>
-              <button onClick={handleCloseDialog} className="font">Close</button>
+              <button onClick={handleSetSize} className="font">
+                Set
+              </button>
+              <button onClick={handleCloseDialog} className="font">
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -311,15 +366,28 @@ const App = () => {
       {contextMenu && (
         <div
           className="contextMenu font"
-          style={{ position: "fixed", top: contextMenu.y, left: contextMenu.x, zIndex: 1000 }}
+          style={{
+            position: "fixed",
+            top: contextMenu.y,
+            left: contextMenu.x,
+            zIndex: 1000,
+          }}
         >
-          <button className="font" onClick={handleChangeIcon}>Change Icon</button>
+          <button className="font" onClick={handleChangeIcon}>
+            Change Icon
+          </button>
           {customImage && (
-            <button className="font" onClick={handleResetIcon}>Reset Icon</button>
+            <button className="font" onClick={handleResetIcon}>
+              Reset Icon
+            </button>
           )}
-          <button className="font" onClick={handleChangeBackground}>Set Background</button>
+          <button className="font" onClick={handleChangeBackground}>
+            Set Background
+          </button>
           {customBg && (
-            <button className="font" onClick={handleResetBackground}>Reset Background</button>
+            <button className="font" onClick={handleResetBackground}>
+              Reset Background
+            </button>
           )}
           <button
             className="font"
@@ -330,15 +398,26 @@ const App = () => {
           >
             {debugMenue ? "Hide Debug" : "Show Debug"}
           </button>
-          <button className="font" onClick={handleChangeSize}>Change Size</button>
-          <button className="font" onClick={() => setContextMenu(null)}>Close</button>
+          <button className="font" onClick={handleChangeSize}>
+            Change Size
+          </button>
+          <button className="font" onClick={() => setContextMenu(null)}>
+            Close
+          </button>
         </div>
       )}
 
       {debugMenue && (
         <div className="debugcontainer">
           <div style={{ padding: 12, fontSize: 12, color: "#111" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
               <strong>Connection Debug</strong>
               <span style={{ fontSize: 11, opacity: 0.7 }}>
                 status: {serverStatus.started ? "true" : "false"}
@@ -346,13 +425,15 @@ const App = () => {
             </div>
             <div style={{ marginTop: 8 }}>
               <div>
-                <strong>Electron env:</strong> {envInfo ? envInfo.isDev ? "dev" : "prod" : "loading..."}
+                <strong>Electron env:</strong>{" "}
+                {envInfo ? (envInfo.isDev ? "dev" : "prod") : "loading..."}
               </div>
               <div>
                 <strong>Server URL:</strong> {serverStatus.url}
               </div>
               <div>
-                <strong>Server state:</strong> {serverStatus.message || "starting"}
+                <strong>Server state:</strong>{" "}
+                {serverStatus.message || "starting"}
               </div>
               {serverStatus.error && (
                 <div style={{ color: "#a00" }}>
@@ -360,7 +441,8 @@ const App = () => {
                 </div>
               )}
               <div style={{ marginTop: 8 }}>
-                <strong>WS connected:</strong> {wsDebug.connected ? "true" : "false"}
+                <strong>WS connected:</strong>{" "}
+                {wsDebug.connected ? "true" : "false"}
               </div>
               <div>
                 <strong>Reconnect attempts:</strong> {wsDebug.attempts}
@@ -378,7 +460,14 @@ const App = () => {
               {wsDebug.lastMessage && (
                 <details style={{ marginTop: 10 }}>
                   <summary>Latest received payload</summary>
-                  <pre style={{ whiteSpace: "pre-wrap", fontSize: 11, maxHeight: 120, overflow: "auto" }}>
+                  <pre
+                    style={{
+                      whiteSpace: "pre-wrap",
+                      fontSize: 11,
+                      maxHeight: 120,
+                      overflow: "auto",
+                    }}
+                  >
                     {JSON.stringify(wsDebug.lastMessage, null, 2)}
                   </pre>
                 </details>
@@ -388,7 +477,6 @@ const App = () => {
         </div>
       )}
       {/* Drag area */}
-  
 
       {!opened && (
         <div
@@ -401,21 +489,20 @@ const App = () => {
           />
         </div>
       )}
-     <div className="dragable"></div>
+      <div className="dragable"></div>
 
-   {opened && (
-  <>
-    
-    <SitesGrid
-      close={setOpened}
-      onConnectionUpdate={handleConnectionUpdate}
-      backgroundMedia={customBg}
-      tabs={tabs}
-      activeTab={activeTab}
-      sendMessage={sendMessage}
-    />
-  </>
-)}
+      {opened && (
+        <>
+          <SitesGrid
+            close={setOpened}
+            onConnectionUpdate={handleConnectionUpdate}
+            backgroundMedia={customBg}
+            tabs={tabs}
+            activeTab={activeTab}
+            sendMessage={sendMessage}
+          />
+        </>
+      )}
     </div>
   );
 };

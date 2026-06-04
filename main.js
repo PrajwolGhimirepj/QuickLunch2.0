@@ -26,7 +26,6 @@ const SERVER_PORT = process.env.SERVER_PORT || 3000;
 const SERVER_URL = `http://localhost:${SERVER_PORT}`;
 const WS_PORT = Number(process.env.WS_PORT || 3002);
 const WS_HOST = "127.0.0.1";
-const WS_URL = `ws://localhost:${WS_PORT}`;
 
 // SINGLE INSTANCE LOCK
 const gotTheLock = app.requestSingleInstanceLock();
@@ -104,95 +103,132 @@ function verifyWebSocketPort(port, host = WS_HOST, timeout = 1200) {
   });
 }
 
+async function findWebSocketPort(startPort, host = WS_HOST, maxAttempts = 20) {
+  for (let offset = 0; offset < maxAttempts; offset += 1) {
+    const candidatePort = startPort + offset;
+    const occupied = await isPortInUse(candidatePort, host);
+
+    if (!occupied) {
+      return { port: candidatePort, existing: false };
+    }
+
+    const isValidWs = await verifyWebSocketPort(candidatePort, host);
+    if (isValidWs) {
+      return { port: candidatePort, existing: true };
+    }
+
+    console.log(
+      `Port ${candidatePort} is in use by another process, trying next port...`,
+    );
+  }
+
+  throw new Error(
+    `Could not find an available WebSocket port starting from ${startPort}`,
+  );
+}
+
 function startServer() {
   return new Promise(async (resolve, reject) => {
-    console.log(`Checking WebSocket port ${WS_PORT}...`);
-    const alreadyRunning = await isPortInUse(WS_PORT);
-    if (alreadyRunning) {
-      console.log(`Port ${WS_PORT} is already in use, validating existing WebSocket server...`);
-      const isValidWs = await verifyWebSocketPort(WS_PORT);
-      if (isValidWs) {
+    try {
+      console.log(
+        `Looking for available WebSocket port starting at ${WS_PORT}...`,
+      );
+      const { port: selectedPort, existing: reuseExisting } =
+        await findWebSocketPort(WS_PORT);
+      const selectedUrl = `ws://localhost:${selectedPort}`;
+
+      serverStatus = {
+        ...serverStatus,
+        port: selectedPort,
+        url: selectedUrl,
+      };
+
+      if (selectedPort !== WS_PORT) {
+        console.log(
+          `Default WebSocket port ${WS_PORT} is occupied, using ${selectedPort} instead.`,
+        );
+      }
+
+      if (reuseExisting) {
         serverStatus = {
           ...serverStatus,
           started: true,
           reused: true,
-          message: `Reusing existing WebSocket server on ${WS_URL}`,
+          message: `Reusing existing WebSocket server on ${selectedUrl}`,
         };
         console.log(serverStatus.message);
         resolve();
         return;
       }
 
-      const errorMessage = `Port ${WS_PORT} is in use by another process and is not a compatible WebSocket server.`;
+      console.log(`Starting a new WebSocket server at ${selectedUrl}`);
+
+      const clients = new Set();
+      let lastMessage = null;
+
+      wss = new WebSocketServer({ port: selectedPort });
+
+      wss.on("listening", () => {
+        serverStatus = {
+          ...serverStatus,
+          started: true,
+          reused: false,
+          message: `WebSocket server running on ${selectedUrl}`,
+        };
+        console.log(serverStatus.message);
+        resolve();
+      });
+
+      wss.on("error", (error) => {
+        if (error.code === "EADDRINUSE") {
+          console.error(
+            `WebSocket port ${selectedPort} is already in use. Stop the other process or set WS_PORT to a different port.`,
+          );
+        } else {
+          console.error("WebSocket server error:", error);
+        }
+        reject(error);
+      });
+
+      wss.on("connection", (ws) => {
+        clients.add(ws);
+        console.log("Client connected");
+
+        if (lastMessage) {
+          ws.send(JSON.stringify(lastMessage));
+        }
+
+        ws.on("message", (message) => {
+          try {
+            const data = JSON.parse(message.toString());
+            console.log("Tabs received:", data);
+            lastMessage = data;
+
+            clients.forEach((client) => {
+              if (client.readyState === client.OPEN) {
+                client.send(JSON.stringify(data));
+              }
+            });
+          } catch (err) {
+            console.error("Invalid WS message:", err);
+          }
+        });
+
+        ws.on("close", () => {
+          clients.delete(ws);
+          console.log("Client disconnected");
+        });
+      });
+    } catch (error) {
       serverStatus = {
         ...serverStatus,
         started: false,
-        error: errorMessage,
-        message: errorMessage,
+        error: error.message,
+        message: error.message,
       };
-      console.error(errorMessage);
-      reject(new Error(errorMessage));
-      return;
-    }
-
-    console.log(`Starting a new WebSocket server at ${WS_URL}`);
-
-    const clients = new Set();
-    let lastMessage = null;
-
-    wss = new WebSocketServer({ port: WS_PORT });
-
-    wss.on("listening", () => {
-      serverStatus = {
-        ...serverStatus,
-        started: true,
-        reused: false,
-        message: `WebSocket server running on ${WS_URL}`,
-      };
-      console.log(serverStatus.message);
-      resolve();
-    });
-
-    wss.on("error", (error) => {
-      if (error.code === "EADDRINUSE") {
-        console.error(
-          `WebSocket port ${WS_PORT} is already in use. Stop the other process or set WS_PORT to a different port.`,
-        );
-      } else {
-        console.error("WebSocket server error:", error);
-      }
+      console.error("Failed to start WebSocket server:", error);
       reject(error);
-    });
-
-    wss.on("connection", (ws) => {
-      clients.add(ws);
-      console.log("Client connected");
-
-      if (lastMessage) {
-        ws.send(JSON.stringify(lastMessage));
-      }
-
-      ws.on("message", (message) => {
-        try {
-          const data = JSON.parse(message.toString());
-          console.log("Tabs received:", data);
-          lastMessage = data;
-
-          clients.forEach((client) => {
-            if (client.readyState === client.OPEN) {
-              client.send(JSON.stringify(data));
-            }
-          });
-        } catch (err) {
-          console.error("Invalid WS message:", err);
-        }
-      });
-
-      ws.on("close", () => {
-        clients.delete(ws);
-        console.log("Client disconnected");
-      });
-    });
+    }
   });
 }
 
@@ -230,16 +266,14 @@ function createWindow() {
   } else {
     const indexHtml = path.join(__dirname, "dist", "index.html");
     console.log(`Loading local production UI from ${indexHtml}`);
-    win
-      .loadFile(indexHtml)
-      .catch((err) => {
-        console.error("Failed to load local production UI:", err);
-        const fallbackUrl = "https://quicklubch.netlify.app/";
-        console.log(`Falling back to remote URL: ${fallbackUrl}`);
-        win.loadURL(fallbackUrl).catch((retryErr) => {
-          console.error("Failed to load fallback remote URL:", retryErr);
-        });
+    win.loadFile(indexHtml).catch((err) => {
+      console.error("Failed to load local production UI:", err);
+      const fallbackUrl = "https://quicklubch.netlify.app/";
+      console.log(`Falling back to remote URL: ${fallbackUrl}`);
+      win.loadURL(fallbackUrl).catch((retryErr) => {
+        console.error("Failed to load fallback remote URL:", retryErr);
       });
+    });
   }
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -275,8 +309,6 @@ app.on("will-quit", () => {
     });
   }
 });
-
-
 
 // ================= IPC HANDLERS =================
 

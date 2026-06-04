@@ -1,63 +1,106 @@
 let socket;
 let reconnectTimer;
 
+const WS_PORT_START = 3002;
+const WS_PORT_END = 3022;
+
+const testWebSocketPort = (port) =>
+  new Promise((resolve) => {
+    const candidate = new WebSocket(`ws://localhost:${port}`);
+    const timer = setTimeout(() => {
+      candidate.close();
+      resolve(false);
+    }, 800);
+
+    candidate.onopen = () => {
+      clearTimeout(timer);
+      candidate.close();
+      resolve(true);
+    };
+
+    candidate.onerror = () => {
+      clearTimeout(timer);
+      candidate.close();
+      resolve(false);
+    };
+  });
+
 function connectWS() {
   if (socket && socket.readyState !== WebSocket.CLOSED) {
     return;
   }
 
-  socket = new WebSocket("ws://localhost:3002");
+  const connectToAvailablePort = async () => {
+    for (let port = WS_PORT_START; port <= WS_PORT_END; port += 1) {
+      const available = await testWebSocketPort(port);
+      if (!available) continue;
 
-  socket.onopen = () => {
-    console.log("Connected to server");
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
-    sendAllTabsWithActive();
-  };
+      socket = new WebSocket(`ws://localhost:${port}`);
 
-  socket.onerror = (error) => {
-    console.error("WebSocket error:", error);
-    if (socket.readyState !== WebSocket.OPEN && socket.readyState !== WebSocket.CONNECTING) {
-      socket.close();
-    }
-  };
+      socket.onopen = () => {
+        console.log(`Connected to server on port ${port}`);
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+        sendAllTabsWithActive();
+      };
 
-  // socket.onclose = () => {
-  //   console.log("Disconnected, retrying...");
-  //   reconnectTimer = setTimeout(connectWS, 2000);
-  // };
+      socket.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        if (
+          socket.readyState !== WebSocket.OPEN &&
+          socket.readyState !== WebSocket.CONNECTING
+        ) {
+          socket.close();
+        }
+      };
 
-  socket.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      console.log("Received from client:", data);
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log("Received from client:", data);
 
-      // HANDLE FOCUS TAB
-      if (data.action === "focus-tab" && data.tabId) {
-        chrome.tabs.update(data.tabId, { active: true }, (tab) => {
-          if (chrome.runtime.lastError) {
-            console.error("Error focusing tab:", chrome.runtime.lastError);
-            return;
+          if (data.action === "focus-tab" && data.tabId) {
+            chrome.tabs.update(data.tabId, { active: true }, (tab) => {
+              if (chrome.runtime.lastError) {
+                console.error("Error focusing tab:", chrome.runtime.lastError);
+                return;
+              }
+
+              console.log("Tab focused:", tab.id);
+
+              chrome.windows.update(tab.windowId, { focused: true }, () => {
+                if (chrome.runtime.lastError) {
+                  console.error(
+                    "Error focusing window:",
+                    chrome.runtime.lastError,
+                  );
+                } else {
+                  console.log("Window brought to front:", tab.windowId);
+                }
+              });
+            });
           }
+        } catch (err) {
+          console.error("Invalid WS message:", err);
+        }
+      };
 
-          console.log("Tab focused:", tab.id);
+      socket.onclose = () => {
+        console.log("Disconnected, retrying...");
+        reconnectTimer = setTimeout(connectWS, 2000);
+      };
 
-    
-          chrome.windows.update(tab.windowId, { focused: true }, () => {
-            if (chrome.runtime.lastError) {
-              console.error("Error focusing window:", chrome.runtime.lastError);
-            } else {
-              console.log("Window brought to front:", tab.windowId);
-            }
-          });
-        });
-      }
-    } catch (err) {
-      console.error("Invalid WS message:", err);
+      return;
     }
+
+    console.warn(
+      `No WebSocket server found between ports ${WS_PORT_START}-${WS_PORT_END}`,
+    );
   };
+
+  connectToAvailablePort();
 }
 
 // Send all tabs and active tab info to the React client
@@ -76,7 +119,7 @@ function sendAllTabsWithActive() {
             title: activeTabArr[0].title,
             url: activeTabArr[0].url,
             id: activeTabArr[0].id,
-            windowId: activeTabArr[0].windowId, // 
+            windowId: activeTabArr[0].windowId, //
           }
         : null;
 
@@ -91,6 +134,7 @@ function sendAllTabsWithActive() {
       }
     });
   });
+}
 
 // Listen for tab activation
 chrome.tabs.onActivated.addListener(() => {
@@ -123,7 +167,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // Send updates on multiple status changes, not just "complete"
   if (changeInfo.status || changeInfo.url || changeInfo.title) {
-    console.log("Tab updated:", { tabId, status: changeInfo.status, hasUrl: !!changeInfo.url });
+    console.log("Tab updated:", {
+      tabId,
+      status: changeInfo.status,
+      hasUrl: !!changeInfo.url,
+    });
     sendAllTabsWithActive();
   }
 });
