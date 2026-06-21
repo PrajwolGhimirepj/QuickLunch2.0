@@ -53,7 +53,8 @@ function focusChromeWindow() {
 
   console.log(`Launching Python script with: ${pythonCommand} ${scriptPath}`);
   const pythonProcess = spawn(pythonCommand, [scriptPath], {
-    stdio: "inherit",
+    stdio: "ignore",
+    windowsHide: true,
   });
 
   pythonProcess.on("error", (err) => {

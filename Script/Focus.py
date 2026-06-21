@@ -2,6 +2,7 @@ import win32gui
 import win32con
 import win32process
 import psutil
+import ctypes
 import time
 
 def get_chrome_hwnd():
@@ -20,19 +21,48 @@ def get_chrome_hwnd():
     return hwnds[0] if hwnds else None
 
 
+def is_snapped(hwnd):
+    """Returns True if window is snapped/split-screened."""
+    left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+
+    screen_w = ctypes.windll.user32.GetSystemMetrics(0)
+    screen_h = ctypes.windll.user32.GetSystemMetrics(1)
+
+    width = right - left
+    height = bottom - top
+
+    # Maximized window is roughly screen size.
+    # Snapped window usually uses about half the screen width.
+    return width < screen_w * 0.9 and height > screen_h * 0.8
+
+
 hwnd = get_chrome_hwnd()
 
 if hwnd:
-    # 1. Restore window
-    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-    time.sleep(0.05)
 
-    # 2. Maximize (full window fullscreen)
-    win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
-    time.sleep(0.05)
+    # Check if Chrome is already focused
+    foreground = win32gui.GetForegroundWindow()
 
-    # 3. Force to top layer
-    win32gui.BringWindowToTop(hwnd)
+    if foreground == hwnd:
+        print("Chrome is already on top. No action taken.")
 
-    # 4. HARD focus attempt
-    win32gui.SetForegroundWindow(hwnd)
+    elif is_snapped(hwnd):
+        print("Chrome is in split-screen mode. No action taken.")
+
+    else:
+        placement = win32gui.GetWindowPlacement(hwnd)
+
+        # Restore if minimized
+        if placement[1] == win32con.SW_SHOWMINIMIZED:
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            time.sleep(0.05)
+
+        # Maximize
+        win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+        time.sleep(0.05)
+
+        # Bring to front
+        win32gui.BringWindowToTop(hwnd)
+        win32gui.SetForegroundWindow(hwnd)
+
+        print("Chrome brought to front and maximized.")
